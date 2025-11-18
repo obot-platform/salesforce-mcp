@@ -34,7 +34,7 @@ jobs:
         id: build-and-push
         with:
           project: bbqjs4tj1g
-          context: ./salesforce-mcp
+          context: ./
           push: true
           pull: true
           platforms: linux/amd64,linux/arm64
