@@ -1,4 +1,4 @@
-name: Build release salesforce-mcp
+name: Build and release
 
 permissions:
   id-token: write
@@ -9,12 +9,15 @@ on:
   workflow_dispatch:
   push:
     paths:
-      - "salesforce-mcp/**"
+      - "app/**"
+      - "pyproject.toml"
+      - "Dockerfile"
+      - "uv.lock"
     branches:
       - main
 
 jobs:
-  oss-tools-build:
+  build-and-release:
     runs-on: depot-ubuntu-22.04
     concurrency:
       group: salesforce-mcp-build
@@ -39,7 +42,7 @@ jobs:
           pull: true
           platforms: linux/amd64,linux/arm64
           tags: |
-            ghcr.io/${{ github.repository }}/salesforce-mcp:latest
+            ghcr.io/${{ github.repository }}:latest
 
       - name: Install Cosign
         uses: sigstore/cosign-installer@v3.8.1
@@ -49,7 +52,7 @@ jobs:
       - name: Sign Images
         env:
           DIGEST: ${{ steps.build-and-push.outputs.digest }}
-          TAGS: ghcr.io/${{ github.repository }}/salesforce-mcp:latest
+          TAGS: ghcr.io/${{ github.repository }}:latest
         run: |
           images=""
           for tag in ${TAGS}; do
