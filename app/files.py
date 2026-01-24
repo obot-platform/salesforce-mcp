@@ -47,23 +47,36 @@ def validate_salesforce_id(sf_id: str) -> str:
         sf_id: The Salesforce ID to validate
 
     Returns:
-        The validated ID (unchanged)
+        The validated and trimmed ID
 
     Raises:
-        ValueError: If the ID format is invalid
+        ValueError: If the ID is not a string or format is invalid
     """
+    if not isinstance(sf_id, str):
+        raise ValueError(f"Salesforce ID must be a string, got {type(sf_id).__name__}")
+    sf_id = sf_id.strip()
     if not SALESFORCE_ID_PATTERN.match(sf_id):
         raise ValueError(f"Invalid Salesforce ID format: {sf_id}")
     return sf_id
 
 
-def get_mime_type(file_type: Optional[str], filename: Optional[str]) -> str:
-    """Get MIME type from Salesforce FileType or filename extension."""
+def get_mime_type(file_type: Optional[str], file_extension: Optional[str]) -> str:
+    """Get MIME type from Salesforce FileType or file extension.
+
+    Args:
+        file_type: Salesforce FileType value (e.g., "PDF", "WORD_X")
+        file_extension: File extension with or without leading dot (e.g., "pdf", ".pdf")
+
+    Returns:
+        MIME type string, defaults to "application/octet-stream" if unknown
+    """
     if file_type and file_type.upper() in SALESFORCE_FILETYPE_TO_MIME:
         return SALESFORCE_FILETYPE_TO_MIME[file_type.upper()]
 
-    if filename:
-        mime_type, _ = mimetypes.guess_type(filename)
+    if file_extension:
+        # Ensure extension has leading dot for mimetypes.guess_type
+        ext = file_extension if file_extension.startswith(".") else f".{file_extension}"
+        mime_type, _ = mimetypes.guess_type(f"file{ext}")
         if mime_type:
             return mime_type
 
@@ -81,7 +94,8 @@ def get_latest_version_id(sf: Salesforce, document_id: str) -> str:
         The ContentVersion ID of the latest version
 
     Raises:
-        ValueError: If the document is not found or ID is invalid
+        ValueError: If the ID format is invalid or document is not found
+        SalesforceError: If API call fails (permissions, malformed request, etc.)
     """
     validate_salesforce_id(document_id)
 
@@ -109,7 +123,8 @@ def get_version_metadata(sf: Salesforce, version_id: str) -> dict:
         Dictionary with version metadata
 
     Raises:
-        ValueError: If the version is not found or ID is invalid
+        ValueError: If the ID format is invalid or version is not found
+        SalesforceError: If API call fails (permissions, malformed request, etc.)
     """
     validate_salesforce_id(version_id)
 
@@ -156,7 +171,8 @@ def get_document_metadata(sf: Salesforce, document_id: str) -> dict:
         Dictionary with document metadata and versions
 
     Raises:
-        ValueError: If the document is not found or ID is invalid
+        ValueError: If the ID format is invalid or document is not found
+        SalesforceError: If API call fails (permissions, malformed request, etc.)
     """
     validate_salesforce_id(document_id)
 
@@ -302,7 +318,7 @@ def search_content_documents(
                 linked_record_id,
                 query,
                 file_extension.lower(),
-                str(limit),
+                limit,
             )
         else:
             soql = format_soql(
@@ -315,7 +331,7 @@ def search_content_documents(
                 LIMIT {:literal}""",
                 linked_record_id,
                 query,
-                str(limit),
+                limit,
             )
 
         result = sf.query(soql)
@@ -348,7 +364,7 @@ def search_content_documents(
                 LIMIT {:literal}""",
                 query,
                 file_extension.lower(),
-                str(limit),
+                limit,
             )
         else:
             soql = format_soql(
@@ -358,7 +374,7 @@ def search_content_documents(
                 WHERE Title LIKE '%{:like}%'
                 LIMIT {:literal}""",
                 query,
-                str(limit),
+                limit,
             )
 
         result = sf.query(soql)
