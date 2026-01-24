@@ -4,6 +4,7 @@ import base64
 import mimetypes
 import re
 from typing import Optional
+from urllib.parse import urljoin
 
 from simple_salesforce import Salesforce
 from simple_salesforce.format import format_soql
@@ -84,11 +85,17 @@ def get_latest_version_id(sf: Salesforce, document_id: str) -> str:
     """
     validate_salesforce_id(document_id)
 
-    doc = sf.ContentDocument.get(document_id)
-    if not doc:
+    result = sf.query(
+        format_soql(
+            "SELECT LatestPublishedVersionId FROM ContentDocument WHERE Id = {}",
+            document_id,
+        )
+    )
+
+    if not result["records"]:
         raise ValueError(f"ContentDocument not found: {document_id}")
 
-    return doc["LatestPublishedVersionId"]
+    return result["records"][0]["LatestPublishedVersionId"]
 
 
 def get_version_metadata(sf: Salesforce, version_id: str) -> dict:
@@ -106,24 +113,35 @@ def get_version_metadata(sf: Salesforce, version_id: str) -> dict:
     """
     validate_salesforce_id(version_id)
 
-    record = sf.ContentVersion.get(version_id)
-    if not record:
+    result = sf.query(
+        format_soql(
+            """SELECT Id, ContentDocumentId, Title, PathOnClient, FileType,
+                FileExtension, ContentSize, VersionNumber, IsLatest,
+                CreatedDate, LastModifiedDate, Description
+            FROM ContentVersion
+            WHERE Id = {}""",
+            version_id,
+        )
+    )
+
+    if not result["records"]:
         raise ValueError(f"ContentVersion not found: {version_id}")
 
+    record = result["records"][0]
     return {
         "id": record["Id"],
         "document_id": record["ContentDocumentId"],
         "title": record["Title"],
-        "filename": record["PathOnClient"],
-        "file_type": record["FileType"],
+        "filename": record.get("PathOnClient"),
+        "file_type": record.get("FileType"),
         "file_extension": record.get("FileExtension"),
-        "size": record["ContentSize"],
-        "version_number": record["VersionNumber"],
-        "is_latest": record["IsLatest"],
-        "created_date": record["CreatedDate"],
-        "last_modified_date": record["LastModifiedDate"],
+        "size": record.get("ContentSize"),
+        "version_number": record.get("VersionNumber"),
+        "is_latest": record.get("IsLatest"),
+        "created_date": record.get("CreatedDate"),
+        "last_modified_date": record.get("LastModifiedDate"),
         "description": record.get("Description"),
-        "mime_type": get_mime_type(record["FileType"], record["PathOnClient"]),
+        "mime_type": get_mime_type(record.get("FileType"), record.get("PathOnClient")),
     }
 
 
@@ -142,16 +160,28 @@ def get_document_metadata(sf: Salesforce, document_id: str) -> dict:
     """
     validate_salesforce_id(document_id)
 
-    doc = sf.ContentDocument.get(document_id)
-    if not doc:
+    doc_result = sf.query(
+        format_soql(
+            """SELECT Id, Title, FileType, FileExtension, ContentSize,
+                LatestPublishedVersionId, CreatedDate, LastModifiedDate,
+                OwnerId, Description
+            FROM ContentDocument
+            WHERE Id = {}""",
+            document_id,
+        )
+    )
+
+    if not doc_result["records"]:
         raise ValueError(f"ContentDocument not found: {document_id}")
+
+    doc = doc_result["records"][0]
 
     versions_result = sf.query(
         format_soql(
             """SELECT Id, VersionNumber, ContentSize, CreatedDate, PathOnClient
             FROM ContentVersion
             WHERE ContentDocumentId = {}
-            ORDER BY VersionNumber DESC""",
+            ORDER BY CreatedDate DESC""",
             document_id,
         )
     )
@@ -159,10 +189,10 @@ def get_document_metadata(sf: Salesforce, document_id: str) -> dict:
     versions = [
         {
             "id": v["Id"],
-            "version_number": v["VersionNumber"],
-            "size": v["ContentSize"],
-            "filename": v["PathOnClient"],
-            "created_date": v["CreatedDate"],
+            "version_number": v.get("VersionNumber"),
+            "size": v.get("ContentSize"),
+            "filename": v.get("PathOnClient"),
+            "created_date": v.get("CreatedDate"),
             "resource_uri": f"salesforce://file/{document_id}/version/{v['Id']}",
         }
         for v in versions_result["records"]
@@ -170,16 +200,16 @@ def get_document_metadata(sf: Salesforce, document_id: str) -> dict:
 
     return {
         "id": doc["Id"],
-        "title": doc["Title"],
-        "file_type": doc["FileType"],
+        "title": doc.get("Title"),
+        "file_type": doc.get("FileType"),
         "file_extension": doc.get("FileExtension"),
-        "size": doc["ContentSize"],
-        "latest_version_id": doc["LatestPublishedVersionId"],
-        "created_date": doc["CreatedDate"],
-        "last_modified_date": doc["LastModifiedDate"],
-        "owner_id": doc["OwnerId"],
+        "size": doc.get("ContentSize"),
+        "latest_version_id": doc.get("LatestPublishedVersionId"),
+        "created_date": doc.get("CreatedDate"),
+        "last_modified_date": doc.get("LastModifiedDate"),
+        "owner_id": doc.get("OwnerId"),
         "description": doc.get("Description"),
-        "mime_type": get_mime_type(doc["FileType"], doc["Title"]),
+        "mime_type": get_mime_type(doc.get("FileType"), doc.get("FileExtension")),
         "resource_uri": f"salesforce://file/{doc['Id']}",
         "versions": versions,
     }
@@ -197,10 +227,17 @@ def download_file_content(sf: Salesforce, version_id: str) -> bytes:
 
     Raises:
         ValueError: If the ID format is invalid
+
+    Note:
+        Uses simple_salesforce's internal _call_salesforce method as there is
+        no public API for blob downloads. This is the standard approach per
+        https://github.com/simple-salesforce/simple-salesforce/issues/704
     """
     validate_salesforce_id(version_id)
 
-    url = f"{sf.base_url}sobjects/ContentVersion/{version_id}/VersionData"
+    # Ensure proper URL construction regardless of whether base_url has trailing slash
+    base = sf.base_url if sf.base_url.endswith("/") else sf.base_url + "/"
+    url = urljoin(base, f"sobjects/ContentVersion/{version_id}/VersionData")
     response = sf._call_salesforce("GET", url)
     return response.content
 
@@ -251,11 +288,12 @@ def search_content_documents(
         validate_salesforce_id(linked_record_id)
 
         # Build query with format_soql for safe parameterization
+        # Always select the same fields for consistent output
         if file_extension:
             soql = format_soql(
                 """SELECT ContentDocument.Id, ContentDocument.Title,
-                    ContentDocument.FileExtension, ContentDocument.ContentSize,
-                    ContentDocument.LatestPublishedVersionId, ContentDocument.FileExtension
+                    ContentDocument.FileType, ContentDocument.FileExtension,
+                    ContentDocument.ContentSize, ContentDocument.LatestPublishedVersionId
                 FROM ContentDocumentLink
                 WHERE LinkedEntityId = {}
                 AND ContentDocument.Title LIKE '%{:like}%'
@@ -269,8 +307,8 @@ def search_content_documents(
         else:
             soql = format_soql(
                 """SELECT ContentDocument.Id, ContentDocument.Title,
-                    ContentDocument.FileType, ContentDocument.ContentSize,
-                    ContentDocument.LatestPublishedVersionId, ContentDocument.FileExtension
+                    ContentDocument.FileType, ContentDocument.FileExtension,
+                    ContentDocument.ContentSize, ContentDocument.LatestPublishedVersionId
                 FROM ContentDocumentLink
                 WHERE LinkedEntityId = {}
                 AND ContentDocument.Title LIKE '%{:like}%'
@@ -288,12 +326,12 @@ def search_content_documents(
             files.append(
                 {
                     "id": doc["Id"],
-                    "title": doc["Title"],
-                    "file_type": doc["FileType"],
+                    "title": doc.get("Title"),
+                    "file_type": doc.get("FileType"),
                     "file_extension": doc.get("FileExtension"),
-                    "size": doc["ContentSize"],
-                    "latest_version_id": doc["LatestPublishedVersionId"],
-                    "mime_type": get_mime_type(doc["FileType"], doc["Title"]),
+                    "size": doc.get("ContentSize"),
+                    "latest_version_id": doc.get("LatestPublishedVersionId"),
+                    "mime_type": get_mime_type(doc.get("FileType"), doc.get("FileExtension")),
                     "resource_uri": f"salesforce://file/{doc['Id']}",
                 }
             )
@@ -302,8 +340,8 @@ def search_content_documents(
         # Build query with format_soql for safe parameterization
         if file_extension:
             soql = format_soql(
-                """SELECT Id, Title, FileType, ContentSize,
-                    LatestPublishedVersionId, FileExtension
+                """SELECT Id, Title, FileType, FileExtension,
+                    ContentSize, LatestPublishedVersionId
                 FROM ContentDocument
                 WHERE Title LIKE '%{:like}%'
                 AND FileExtension = {}
@@ -314,8 +352,8 @@ def search_content_documents(
             )
         else:
             soql = format_soql(
-                """SELECT Id, Title, FileType, ContentSize,
-                    LatestPublishedVersionId, FileExtension
+                """SELECT Id, Title, FileType, FileExtension,
+                    ContentSize, LatestPublishedVersionId
                 FROM ContentDocument
                 WHERE Title LIKE '%{:like}%'
                 LIMIT {:literal}""",
@@ -328,12 +366,12 @@ def search_content_documents(
         return [
             {
                 "id": doc["Id"],
-                "title": doc["Title"],
-                "file_type": doc["FileType"],
+                "title": doc.get("Title"),
+                "file_type": doc.get("FileType"),
                 "file_extension": doc.get("FileExtension"),
-                "size": doc["ContentSize"],
-                "latest_version_id": doc["LatestPublishedVersionId"],
-                "mime_type": get_mime_type(doc["FileType"], doc["Title"]),
+                "size": doc.get("ContentSize"),
+                "latest_version_id": doc.get("LatestPublishedVersionId"),
+                "mime_type": get_mime_type(doc.get("FileType"), doc.get("FileExtension")),
                 "resource_uri": f"salesforce://file/{doc['Id']}",
             }
             for doc in result["records"]
@@ -359,8 +397,8 @@ def get_files_for_record(sf: Salesforce, record_id: str) -> list[dict]:
     result = sf.query(
         format_soql(
             """SELECT ContentDocumentId, ContentDocument.Title,
-                ContentDocument.FileType, ContentDocument.ContentSize,
-                ContentDocument.LatestPublishedVersionId, ContentDocument.FileExtension,
+                ContentDocument.FileType, ContentDocument.FileExtension,
+                ContentDocument.ContentSize, ContentDocument.LatestPublishedVersionId,
                 ContentDocument.CreatedDate, ContentDocument.LastModifiedDate
             FROM ContentDocumentLink
             WHERE LinkedEntityId = {}""",
@@ -371,16 +409,16 @@ def get_files_for_record(sf: Salesforce, record_id: str) -> list[dict]:
     return [
         {
             "id": record["ContentDocumentId"],
-            "title": record["ContentDocument"]["Title"],
-            "file_type": record["ContentDocument"]["FileType"],
+            "title": record["ContentDocument"].get("Title"),
+            "file_type": record["ContentDocument"].get("FileType"),
             "file_extension": record["ContentDocument"].get("FileExtension"),
-            "size": record["ContentDocument"]["ContentSize"],
-            "latest_version_id": record["ContentDocument"]["LatestPublishedVersionId"],
-            "created_date": record["ContentDocument"]["CreatedDate"],
-            "last_modified_date": record["ContentDocument"]["LastModifiedDate"],
+            "size": record["ContentDocument"].get("ContentSize"),
+            "latest_version_id": record["ContentDocument"].get("LatestPublishedVersionId"),
+            "created_date": record["ContentDocument"].get("CreatedDate"),
+            "last_modified_date": record["ContentDocument"].get("LastModifiedDate"),
             "mime_type": get_mime_type(
-                record["ContentDocument"]["FileType"],
-                record["ContentDocument"]["Title"],
+                record["ContentDocument"].get("FileType"),
+                record["ContentDocument"].get("FileExtension"),
             ),
             "resource_uri": f"salesforce://file/{record['ContentDocumentId']}",
         }
