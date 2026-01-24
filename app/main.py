@@ -668,7 +668,7 @@ async def search_files(
         int, Field(description="Maximum number of results to return")
     ] = 10,
 ) -> dict:
-    """Search for files in Salesforce by title, type, or linked record."""
+    """Search for files in Salesforce by title, file extension, or linked record."""
     try:
         sf = get_salesforce_client()
         files = search_content_documents(
