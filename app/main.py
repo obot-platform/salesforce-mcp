@@ -8,6 +8,15 @@ from starlette.requests import Request
 from starlette.responses import JSONResponse
 
 from .client import get_salesforce_client
+from .files import (
+    download_file_content,
+    download_file_content_base64,
+    get_document_metadata,
+    get_files_for_record,
+    get_latest_version_id,
+    get_version_metadata,
+    search_content_documents,
+)
 
 mcp = FastMCP(
     name="SalesforceMCP",
@@ -29,16 +38,18 @@ async def describe_contact_schema() -> dict:
         sf = get_salesforce_client()
         schema = sf.Contact.describe()
         fields = []
-        for field in schema['fields']:
-            fields.append({
-                'name': field['name'],
-                'label': field['label'],
-                'type': field['type'],
-                'required': field['nillable'] == False,
-                'createable': field['createable'],
-                'updateable': field['updateable'],
-                'picklistValues': field.get('picklistValues', [])
-            })
+        for field in schema["fields"]:
+            fields.append(
+                {
+                    "name": field["name"],
+                    "label": field["label"],
+                    "type": field["type"],
+                    "required": field["nillable"] == False,
+                    "createable": field["createable"],
+                    "updateable": field["updateable"],
+                    "picklistValues": field.get("picklistValues", []),
+                }
+            )
         return {"schema": {"object": "Contact", "fields": fields}}
     except Exception as e:
         raise ToolError(f"Failed to describe contact schema: {e}")
@@ -47,15 +58,21 @@ async def describe_contact_schema() -> dict:
 @mcp.tool(name="create_contact")
 async def create_contact(
     contact: Annotated[
-        str, Field(description="A JSON-formatted string containing the contact fields to use for the new contact")
-    ]
+        str,
+        Field(
+            description="A JSON-formatted string containing the contact fields to use for the new contact"
+        ),
+    ],
 ) -> dict:
     """Create a new contact in Salesforce."""
     try:
         sf = get_salesforce_client()
         contact_data = json.loads(contact)
         result = sf.Contact.create(contact_data)
-        return {"message": f"Contact created successfully with Id: {result['id']}", "id": result['id']}
+        return {
+            "message": f"Contact created successfully with Id: {result['id']}",
+            "id": result["id"],
+        }
     except json.JSONDecodeError:
         raise ToolError("Invalid JSON provided for contact data")
     except Exception as e:
@@ -65,9 +82,17 @@ async def create_contact(
 @mcp.tool(name="update_contact")
 async def update_contact(
     contact: Annotated[
-        str, Field(description="A JSON-formatted string containing the contact fields to update in the existing contact")
+        str,
+        Field(
+            description="A JSON-formatted string containing the contact fields to update in the existing contact"
+        ),
     ],
-    contact_id: Annotated[str, Field(description="A string containing the Salesforce Id of the contact to update")]
+    contact_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the contact to update"
+        ),
+    ],
 ) -> dict:
     """Update an existing contact in Salesforce."""
     try:
@@ -83,7 +108,12 @@ async def update_contact(
 
 @mcp.tool(name="delete_contact")
 async def delete_contact(
-    contact_id: Annotated[str, Field(description="A string containing the Salesforce Id of the contact to delete")]
+    contact_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the contact to delete"
+        ),
+    ],
 ) -> dict:
     """Delete an existing contact in Salesforce."""
     try:
@@ -101,16 +131,18 @@ async def describe_lead_schema() -> dict:
         sf = get_salesforce_client()
         schema = sf.Lead.describe()
         fields = []
-        for field in schema['fields']:
-            fields.append({
-                'name': field['name'],
-                'label': field['label'],
-                'type': field['type'],
-                'required': field['nillable'] == False,
-                'createable': field['createable'],
-                'updateable': field['updateable'],
-                'picklistValues': field.get('picklistValues', [])
-            })
+        for field in schema["fields"]:
+            fields.append(
+                {
+                    "name": field["name"],
+                    "label": field["label"],
+                    "type": field["type"],
+                    "required": field["nillable"] == False,
+                    "createable": field["createable"],
+                    "updateable": field["updateable"],
+                    "picklistValues": field.get("picklistValues", []),
+                }
+            )
         return {"schema": {"object": "Lead", "fields": fields}}
     except Exception as e:
         raise ToolError(f"Failed to describe lead schema: {e}")
@@ -119,15 +151,21 @@ async def describe_lead_schema() -> dict:
 @mcp.tool(name="create_lead")
 async def create_lead(
     lead: Annotated[
-        str, Field(description="A JSON-formatted string containing the lead fields to use for the new lead")
-    ]
+        str,
+        Field(
+            description="A JSON-formatted string containing the lead fields to use for the new lead"
+        ),
+    ],
 ) -> dict:
     """Create a new lead in Salesforce."""
     try:
         sf = get_salesforce_client()
         lead_data = json.loads(lead)
         result = sf.Lead.create(lead_data)
-        return {"message": f"Lead created successfully with Id: {result['id']}", "id": result['id']}
+        return {
+            "message": f"Lead created successfully with Id: {result['id']}",
+            "id": result["id"],
+        }
     except json.JSONDecodeError:
         raise ToolError("Invalid JSON provided for lead data")
     except Exception as e:
@@ -137,9 +175,17 @@ async def create_lead(
 @mcp.tool(name="update_lead")
 async def update_lead(
     lead: Annotated[
-        str, Field(description="A JSON-formatted string containing the lead fields to update in the existing lead")
+        str,
+        Field(
+            description="A JSON-formatted string containing the lead fields to update in the existing lead"
+        ),
     ],
-    lead_id: Annotated[str, Field(description="A string containing the Salesforce Id of the lead to update")]
+    lead_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the lead to update"
+        ),
+    ],
 ) -> dict:
     """Update an existing lead in Salesforce."""
     try:
@@ -155,7 +201,12 @@ async def update_lead(
 
 @mcp.tool(name="delete_lead")
 async def delete_lead(
-    lead_id: Annotated[str, Field(description="A string containing the Salesforce Id of the lead to delete")]
+    lead_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the lead to delete"
+        ),
+    ],
 ) -> dict:
     """Delete an existing lead in Salesforce."""
     try:
@@ -168,29 +219,53 @@ async def delete_lead(
 
 @mcp.tool(name="convert_lead_to_opportunity")
 async def convert_lead_to_opportunity(
-    lead_id: Annotated[str, Field(description="A string containing the Salesforce Id of the lead to update")],
-    converted_status: Annotated[str, Field(description="The converted status of the lead. Must exist within Salesforce.")],
-    opportunity_name: Annotated[str, Field(description="The name of the opportunity to create")],
-    account_id: Annotated[Optional[str], Field(description="The Salesforce Id of an existing account to associate with the opportunity")] = None,
-    contact_id: Annotated[Optional[str], Field(description="The Salesforce Id of an existing contact to associate with the opportunity")] = None,
+    lead_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the lead to update"
+        ),
+    ],
+    converted_status: Annotated[
+        str,
+        Field(
+            description="The converted status of the lead. Must exist within Salesforce."
+        ),
+    ],
+    opportunity_name: Annotated[
+        str, Field(description="The name of the opportunity to create")
+    ],
+    account_id: Annotated[
+        Optional[str],
+        Field(
+            description="The Salesforce Id of an existing account to associate with the opportunity"
+        ),
+    ] = None,
+    contact_id: Annotated[
+        Optional[str],
+        Field(
+            description="The Salesforce Id of an existing contact to associate with the opportunity"
+        ),
+    ] = None,
 ) -> dict:
     """Converts an existing lead into a new Opportunity in Salesforce."""
     try:
         sf = get_salesforce_client()
-        
+
         convert_data = {
-            'leadId': lead_id,
-            'convertedStatus': converted_status,
-            'opportunityName': opportunity_name
+            "leadId": lead_id,
+            "convertedStatus": converted_status,
+            "opportunityName": opportunity_name,
         }
-        
+
         if account_id:
-            convert_data['accountId'] = account_id
+            convert_data["accountId"] = account_id
         if contact_id:
-            convert_data['contactId'] = contact_id
-            
-        result = sf.apexecute('apex/ConvertLead', method='POST', data=convert_data)
-        return {"message": f"Lead {lead_id} converted successfully to opportunity: {opportunity_name}"}
+            convert_data["contactId"] = contact_id
+
+        result = sf.apexecute("apex/ConvertLead", method="POST", data=convert_data)
+        return {
+            "message": f"Lead {lead_id} converted successfully to opportunity: {opportunity_name}"
+        }
     except Exception as e:
         raise ToolError(f"Failed to convert lead to opportunity: {e}")
 
@@ -202,16 +277,18 @@ async def describe_account_schema() -> dict:
         sf = get_salesforce_client()
         schema = sf.Account.describe()
         fields = []
-        for field in schema['fields']:
-            fields.append({
-                'name': field['name'],
-                'label': field['label'],
-                'type': field['type'],
-                'required': field['nillable'] == False,
-                'createable': field['createable'],
-                'updateable': field['updateable'],
-                'picklistValues': field.get('picklistValues', [])
-            })
+        for field in schema["fields"]:
+            fields.append(
+                {
+                    "name": field["name"],
+                    "label": field["label"],
+                    "type": field["type"],
+                    "required": field["nillable"] == False,
+                    "createable": field["createable"],
+                    "updateable": field["updateable"],
+                    "picklistValues": field.get("picklistValues", []),
+                }
+            )
         return {"schema": {"object": "Account", "fields": fields}}
     except Exception as e:
         raise ToolError(f"Failed to describe account schema: {e}")
@@ -220,15 +297,21 @@ async def describe_account_schema() -> dict:
 @mcp.tool(name="create_account")
 async def create_account(
     account: Annotated[
-        str, Field(description="A JSON-formatted string containing the account fields to use for the new account")
-    ]
+        str,
+        Field(
+            description="A JSON-formatted string containing the account fields to use for the new account"
+        ),
+    ],
 ) -> dict:
     """Create a new account in Salesforce."""
     try:
         sf = get_salesforce_client()
         account_data = json.loads(account)
         result = sf.Account.create(account_data)
-        return {"message": f"Account created successfully with Id: {result['id']}", "id": result['id']}
+        return {
+            "message": f"Account created successfully with Id: {result['id']}",
+            "id": result["id"],
+        }
     except json.JSONDecodeError:
         raise ToolError("Invalid JSON provided for account data")
     except Exception as e:
@@ -238,9 +321,17 @@ async def create_account(
 @mcp.tool(name="update_account")
 async def update_account(
     account: Annotated[
-        str, Field(description="A JSON-formatted string containing the account fields to update in the existing account")
+        str,
+        Field(
+            description="A JSON-formatted string containing the account fields to update in the existing account"
+        ),
     ],
-    account_id: Annotated[str, Field(description="A string containing the Salesforce Id of the account to update")]
+    account_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the account to update"
+        ),
+    ],
 ) -> dict:
     """Update an existing account in Salesforce."""
     try:
@@ -256,7 +347,12 @@ async def update_account(
 
 @mcp.tool(name="delete_account")
 async def delete_account(
-    account_id: Annotated[str, Field(description="A string containing the Salesforce Id of the account to delete")]
+    account_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the account to delete"
+        ),
+    ],
 ) -> dict:
     """Delete an existing account in Salesforce."""
     try:
@@ -274,16 +370,18 @@ async def describe_opportunity_schema() -> dict:
         sf = get_salesforce_client()
         schema = sf.Opportunity.describe()
         fields = []
-        for field in schema['fields']:
-            fields.append({
-                'name': field['name'],
-                'label': field['label'],
-                'type': field['type'],
-                'required': field['nillable'] == False,
-                'createable': field['createable'],
-                'updateable': field['updateable'],
-                'picklistValues': field.get('picklistValues', [])
-            })
+        for field in schema["fields"]:
+            fields.append(
+                {
+                    "name": field["name"],
+                    "label": field["label"],
+                    "type": field["type"],
+                    "required": field["nillable"] == False,
+                    "createable": field["createable"],
+                    "updateable": field["updateable"],
+                    "picklistValues": field.get("picklistValues", []),
+                }
+            )
         return {"schema": {"object": "Opportunity", "fields": fields}}
     except Exception as e:
         raise ToolError(f"Failed to describe opportunity schema: {e}")
@@ -292,15 +390,21 @@ async def describe_opportunity_schema() -> dict:
 @mcp.tool(name="create_opportunity")
 async def create_opportunity(
     opportunity: Annotated[
-        str, Field(description="A JSON-formatted string containing the opportunity fields to use for the new opportunity")
-    ]
+        str,
+        Field(
+            description="A JSON-formatted string containing the opportunity fields to use for the new opportunity"
+        ),
+    ],
 ) -> dict:
     """Create a new opportunity in Salesforce."""
     try:
         sf = get_salesforce_client()
         opportunity_data = json.loads(opportunity)
         result = sf.Opportunity.create(opportunity_data)
-        return {"message": f"Opportunity created successfully with Id: {result['id']}", "id": result['id']}
+        return {
+            "message": f"Opportunity created successfully with Id: {result['id']}",
+            "id": result["id"],
+        }
     except json.JSONDecodeError:
         raise ToolError("Invalid JSON provided for opportunity data")
     except Exception as e:
@@ -310,9 +414,17 @@ async def create_opportunity(
 @mcp.tool(name="update_opportunity")
 async def update_opportunity(
     opportunity: Annotated[
-        str, Field(description="A JSON-formatted string containing the opportunity fields to update in the existing opportunity")
+        str,
+        Field(
+            description="A JSON-formatted string containing the opportunity fields to update in the existing opportunity"
+        ),
     ],
-    opportunity_id: Annotated[str, Field(description="A string containing the Salesforce Id of the opportunity to update")]
+    opportunity_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the opportunity to update"
+        ),
+    ],
 ) -> dict:
     """Update an existing opportunity in Salesforce."""
     try:
@@ -328,7 +440,12 @@ async def update_opportunity(
 
 @mcp.tool(name="delete_opportunity")
 async def delete_opportunity(
-    opportunity_id: Annotated[str, Field(description="A string containing the Salesforce Id of the opportunity to delete")]
+    opportunity_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the opportunity to delete"
+        ),
+    ],
 ) -> dict:
     """Delete an existing opportunity in Salesforce."""
     try:
@@ -346,16 +463,18 @@ async def describe_case_schema() -> dict:
         sf = get_salesforce_client()
         schema = sf.Case.describe()
         fields = []
-        for field in schema['fields']:
-            fields.append({
-                'name': field['name'],
-                'label': field['label'],
-                'type': field['type'],
-                'required': field['nillable'] == False,
-                'createable': field['createable'],
-                'updateable': field['updateable'],
-                'picklistValues': field.get('picklistValues', [])
-            })
+        for field in schema["fields"]:
+            fields.append(
+                {
+                    "name": field["name"],
+                    "label": field["label"],
+                    "type": field["type"],
+                    "required": field["nillable"] == False,
+                    "createable": field["createable"],
+                    "updateable": field["updateable"],
+                    "picklistValues": field.get("picklistValues", []),
+                }
+            )
         return {"schema": {"object": "Case", "fields": fields}}
     except Exception as e:
         raise ToolError(f"Failed to describe case schema: {e}")
@@ -364,15 +483,21 @@ async def describe_case_schema() -> dict:
 @mcp.tool(name="create_case")
 async def create_case(
     case: Annotated[
-        str, Field(description="A JSON-formatted string containing the case fields to use for the new case")
-    ]
+        str,
+        Field(
+            description="A JSON-formatted string containing the case fields to use for the new case"
+        ),
+    ],
 ) -> dict:
     """Create a new case in Salesforce."""
     try:
         sf = get_salesforce_client()
         case_data = json.loads(case)
         result = sf.Case.create(case_data)
-        return {"message": f"Case created successfully with Id: {result['id']}", "id": result['id']}
+        return {
+            "message": f"Case created successfully with Id: {result['id']}",
+            "id": result["id"],
+        }
     except json.JSONDecodeError:
         raise ToolError("Invalid JSON provided for case data")
     except Exception as e:
@@ -382,9 +507,17 @@ async def create_case(
 @mcp.tool(name="update_case")
 async def update_case(
     case: Annotated[
-        str, Field(description="A JSON-formatted string containing the case fields to update in the existing case")
+        str,
+        Field(
+            description="A JSON-formatted string containing the case fields to update in the existing case"
+        ),
     ],
-    case_id: Annotated[str, Field(description="A string containing the Salesforce Id of the case to update")]
+    case_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the case to update"
+        ),
+    ],
 ) -> dict:
     """Update an existing case in Salesforce."""
     try:
@@ -400,7 +533,12 @@ async def update_case(
 
 @mcp.tool(name="delete_case")
 async def delete_case(
-    case_id: Annotated[str, Field(description="A string containing the Salesforce Id of the case to delete")]
+    case_id: Annotated[
+        str,
+        Field(
+            description="A string containing the Salesforce Id of the case to delete"
+        ),
+    ],
 ) -> dict:
     """Delete an existing case in Salesforce."""
     try:
@@ -413,27 +551,27 @@ async def delete_case(
 
 @mcp.tool(name="query")
 async def query(
-    query: Annotated[str, Field(description="The SOQL query to execute")]
+    query: Annotated[str, Field(description="The SOQL query to execute")],
 ) -> dict:
     """Query Salesforce using SOQL."""
     try:
         sf = get_salesforce_client()
         result = sf.query(query)
-        
+
         records = []
-        for record in result['records']:
+        for record in result["records"]:
             records.append(record)
-            
+
         response = {
-            "totalSize": result['totalSize'],
-            "done": result['done'],
-            "records": records
+            "totalSize": result["totalSize"],
+            "done": result["done"],
+            "records": records,
         }
-        
+
         # Handle pagination
-        if not result['done'] and 'nextRecordsUrl' in result:
-            response['nextRecordsUrl'] = result['nextRecordsUrl']
-            
+        if not result["done"] and "nextRecordsUrl" in result:
+            response["nextRecordsUrl"] = result["nextRecordsUrl"]
+
         return response
     except Exception as e:
         raise ToolError(f"Failed to execute query: {e}")
@@ -441,17 +579,27 @@ async def query(
 
 @mcp.tool(name="get_direct_link")
 async def get_direct_link(
-    object_type: Annotated[str, Field(description="The type of Salesforce object to get the direct link for. Use singular form, starting with a capital letter (e.g., Account, Contact, Lead, Opportunity, Case)")],
-    object_id: Annotated[str, Field(description="The ID of the Salesforce object to get the direct link for.")]
+    object_type: Annotated[
+        str,
+        Field(
+            description="The type of Salesforce object to get the direct link for. Use singular form, starting with a capital letter (e.g., Account, Contact, Lead, Opportunity, Case)"
+        ),
+    ],
+    object_id: Annotated[
+        str,
+        Field(
+            description="The ID of the Salesforce object to get the direct link for."
+        ),
+    ],
 ) -> dict:
     """Get a direct weblink to a Salesforce object."""
     try:
         sf = get_salesforce_client()
         # Extract the base URL from the instance URL
         instance_url = sf.sf_instance
-        if not instance_url.startswith('https://'):
+        if not instance_url.startswith("https://"):
             instance_url = f"https://{instance_url}"
-        
+
         direct_url = f"{instance_url}/{object_id}"
         return {"url": direct_url, "object_type": object_type, "object_id": object_id}
     except Exception as e:
@@ -460,35 +608,172 @@ async def get_direct_link(
 
 @mcp.tool(name="email_message")
 async def email_message(
-    related_object_id: Annotated[str, Field(description="The Salesforce Id of the object to which the email should be related")],
+    related_object_id: Annotated[
+        str,
+        Field(
+            description="The Salesforce Id of the object to which the email should be related"
+        ),
+    ],
     subject: Annotated[str, Field(description="The subject of the email")],
     text_body: Annotated[str, Field(description="The plaintext body of the email")],
     html_body: Annotated[str, Field(description="The HTML body of the email")],
     from_name: Annotated[str, Field(description="The name of the sender")],
     from_address: Annotated[str, Field(description="The email address of the sender")],
     to_address: Annotated[str, Field(description="The email address of the recipient")],
-    status: Annotated[int, Field(description="The numeric status of the email (3 = Sent, 5 = Draft). Create messages as drafts by default.")] = 5,
+    status: Annotated[
+        int,
+        Field(
+            description="The numeric status of the email (3 = Sent, 5 = Draft). Create messages as drafts by default."
+        ),
+    ] = 5,
 ) -> dict:
     """Create an Email in Salesforce using Enhanced Email functionality."""
     try:
         sf = get_salesforce_client()
-        
+
         email_data = {
-            'RelatedToId': related_object_id,
-            'Subject': subject,
-            'TextBody': text_body,
-            'HtmlBody': html_body,
-            'FromName': from_name,
-            'FromAddress': from_address,
-            'ToAddress': to_address,
-            'Status': status
+            "RelatedToId": related_object_id,
+            "Subject": subject,
+            "TextBody": text_body,
+            "HtmlBody": html_body,
+            "FromName": from_name,
+            "FromAddress": from_address,
+            "ToAddress": to_address,
+            "Status": status,
         }
-        
+
         result = sf.EmailMessage.create(email_data)
         status_text = "Draft" if status == 5 else "Sent" if status == 3 else "Unknown"
-        return {"message": f"Email message created successfully with Id: {result['id']} (Status: {status_text})", "id": result['id']}
+        return {
+            "message": f"Email message created successfully with Id: {result['id']} (Status: {status_text})",
+            "id": result["id"],
+        }
     except Exception as e:
         raise ToolError(f"Failed to create email message: {e}")
+
+
+@mcp.tool(name="search_files")
+async def search_files(
+    query: Annotated[
+        str, Field(description="Search term to match against file titles")
+    ],
+    file_extension: Annotated[
+        Optional[str],
+        Field(description="Filter by file extension (e.g., 'pdf', 'docx')"),
+    ] = None,
+    linked_record_id: Annotated[
+        Optional[str], Field(description="Salesforce record ID to find linked files")
+    ] = None,
+    limit: Annotated[
+        int, Field(description="Maximum number of results to return")
+    ] = 10,
+) -> dict:
+    """Search for files in Salesforce by title, type, or linked record."""
+    try:
+        sf = get_salesforce_client()
+        files = search_content_documents(
+            sf,
+            query=query,
+            file_extension=file_extension,
+            linked_record_id=linked_record_id,
+            limit=limit,
+        )
+        return {
+            "total_count": len(files),
+            "files": files,
+        }
+    except Exception as e:
+        raise ToolError(f"Failed to search files: {e}")
+
+
+@mcp.tool(name="get_file_metadata")
+async def get_file_metadata(
+    file_id: Annotated[str, Field(description="The ContentDocument ID of the file")],
+) -> dict:
+    """Get detailed metadata for a Salesforce file including all versions."""
+    try:
+        sf = get_salesforce_client()
+        metadata = get_document_metadata(sf, file_id)
+        return {"file": metadata}
+    except ValueError as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to get file metadata: {e}")
+
+
+@mcp.tool(name="list_record_files")
+async def list_record_files(
+    record_id: Annotated[
+        str,
+        Field(description="Salesforce record ID (Account, Opportunity, Contact, etc.)"),
+    ],
+) -> dict:
+    """List all files attached to a Salesforce record."""
+    try:
+        sf = get_salesforce_client()
+        files = get_files_for_record(sf, record_id)
+        return {
+            "record_id": record_id,
+            "total_count": len(files),
+            "files": files,
+        }
+    except Exception as e:
+        raise ToolError(f"Failed to list record files: {e}")
+
+
+@mcp.tool(name="get_file_content")
+async def get_file_content(
+    file_id: Annotated[str, Field(description="ContentDocument or ContentVersion ID")],
+) -> dict:
+    """Get file binary content as base64. Use for small files or when inline content is needed."""
+    try:
+        sf = get_salesforce_client()
+
+        # Determine if this is a ContentDocument or ContentVersion ID
+        # ContentDocument IDs start with 069, ContentVersion IDs start with 068
+        if file_id.startswith("068"):
+            version_id = file_id
+        else:
+            version_id = get_latest_version_id(sf, file_id)
+
+        metadata = get_version_metadata(sf, version_id)
+        content_base64 = download_file_content_base64(sf, version_id)
+
+        return {
+            "content": content_base64,
+            "filename": metadata["filename"],
+            "mime_type": metadata["mime_type"],
+            "size": metadata["size"],
+            "version_id": version_id,
+            "document_id": metadata["document_id"],
+        }
+    except ValueError as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to get file content: {e}")
+
+
+@mcp.resource("salesforce://file/{file_id}")
+async def get_file_resource(file_id: str) -> bytes:
+    """Get binary content of a Salesforce file (latest version)."""
+    try:
+        sf = get_salesforce_client()
+        version_id = get_latest_version_id(sf, file_id)
+        return download_file_content(sf, version_id)
+    except ValueError as e:
+        raise ToolError(str(e))
+    except Exception as e:
+        raise ToolError(f"Failed to get file resource: {e}")
+
+
+@mcp.resource("salesforce://file/{file_id}/version/{version_id}")
+async def get_file_version_resource(file_id: str, version_id: str) -> bytes:
+    """Get binary content of a specific file version."""
+    try:
+        sf = get_salesforce_client()
+        return download_file_content(sf, version_id)
+    except Exception as e:
+        raise ToolError(f"Failed to get file version resource: {e}")
 
 
 def streamable_http_server():
