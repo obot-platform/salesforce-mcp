@@ -298,6 +298,8 @@ def search_content_documents(
         ValueError: If linked_record_id is provided but invalid
     """
     # Validate and sanitize limit
+    if not isinstance(limit, int):
+        raise TypeError(f"limit must be an int, got {type(limit).__name__}")
     limit = max(1, min(200, limit))
 
     if linked_record_id:
