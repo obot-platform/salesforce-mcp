@@ -318,7 +318,7 @@ def search_content_documents(
                 linked_record_id,
                 query,
                 file_extension.lower(),
-                limit,
+                str(limit),
             )
         else:
             soql = format_soql(
@@ -331,7 +331,7 @@ def search_content_documents(
                 LIMIT {:literal}""",
                 linked_record_id,
                 query,
-                limit,
+                str(limit),
             )
 
         result = sf.query(soql)
@@ -347,7 +347,9 @@ def search_content_documents(
                     "file_extension": doc.get("FileExtension"),
                     "size": doc.get("ContentSize"),
                     "latest_version_id": doc.get("LatestPublishedVersionId"),
-                    "mime_type": get_mime_type(doc.get("FileType"), doc.get("FileExtension")),
+                    "mime_type": get_mime_type(
+                        doc.get("FileType"), doc.get("FileExtension")
+                    ),
                     "resource_uri": f"salesforce://file/{doc['Id']}",
                 }
             )
@@ -364,7 +366,7 @@ def search_content_documents(
                 LIMIT {:literal}""",
                 query,
                 file_extension.lower(),
-                limit,
+                str(limit),
             )
         else:
             soql = format_soql(
@@ -374,7 +376,7 @@ def search_content_documents(
                 WHERE Title LIKE '%{:like}%'
                 LIMIT {:literal}""",
                 query,
-                limit,
+                str(limit),
             )
 
         result = sf.query(soql)
@@ -387,7 +389,9 @@ def search_content_documents(
                 "file_extension": doc.get("FileExtension"),
                 "size": doc.get("ContentSize"),
                 "latest_version_id": doc.get("LatestPublishedVersionId"),
-                "mime_type": get_mime_type(doc.get("FileType"), doc.get("FileExtension")),
+                "mime_type": get_mime_type(
+                    doc.get("FileType"), doc.get("FileExtension")
+                ),
                 "resource_uri": f"salesforce://file/{doc['Id']}",
             }
             for doc in result["records"]
@@ -429,7 +433,9 @@ def get_files_for_record(sf: Salesforce, record_id: str) -> list[dict]:
             "file_type": record["ContentDocument"].get("FileType"),
             "file_extension": record["ContentDocument"].get("FileExtension"),
             "size": record["ContentDocument"].get("ContentSize"),
-            "latest_version_id": record["ContentDocument"].get("LatestPublishedVersionId"),
+            "latest_version_id": record["ContentDocument"].get(
+                "LatestPublishedVersionId"
+            ),
             "created_date": record["ContentDocument"].get("CreatedDate"),
             "last_modified_date": record["ContentDocument"].get("LastModifiedDate"),
             "mime_type": get_mime_type(
