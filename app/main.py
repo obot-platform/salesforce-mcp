@@ -3,6 +3,7 @@ from typing import Annotated, Optional
 
 from fastmcp import FastMCP
 from fastmcp.exceptions import ToolError
+from fastmcp.resources import ResourceContent, ResourceResult
 from pydantic import Field
 from starlette.requests import Request
 from starlette.responses import JSONResponse
@@ -20,9 +21,7 @@ from .files import (
 
 mcp = FastMCP(
     name="SalesforceMCP",
-    on_duplicate_tools="error",
-    on_duplicate_resources="warn",
-    on_duplicate_prompts="replace",
+    on_duplicate="error",
 )
 
 
@@ -754,12 +753,18 @@ async def get_file_content(
 
 
 @mcp.resource("salesforce://file/{file_id}")
-async def get_file_resource(file_id: str) -> bytes:
+async def get_file_resource(file_id: str) -> ResourceResult:
     """Get binary content of a Salesforce file (latest version)."""
     try:
         sf = get_salesforce_client()
         version_id = get_latest_version_id(sf, file_id)
-        return download_file_content(sf, version_id)
+        meta = await get_file_metadata(file_id)
+        file_content = download_file_content(sf, version_id)
+        return ResourceResult(
+            contents=[
+                ResourceContent(file_content, mime_type=meta["file"]["mime_type"])
+            ]
+        )
     except ValueError as e:
         raise ToolError(str(e))
     except Exception as e:
@@ -767,11 +772,17 @@ async def get_file_resource(file_id: str) -> bytes:
 
 
 @mcp.resource("salesforce://file/{file_id}/version/{version_id}")
-async def get_file_version_resource(file_id: str, version_id: str) -> bytes:
+async def get_file_version_resource(file_id: str, version_id: str) -> ResourceResult:
     """Get binary content of a specific file version."""
     try:
         sf = get_salesforce_client()
-        return download_file_content(sf, version_id)
+        meta = await get_file_metadata(file_id)
+        file_content = download_file_content(sf, version_id)
+        return ResourceResult(
+            contents=[
+                ResourceContent(file_content, mime_type=meta["file"]["mime_type"])
+            ]
+        )
     except Exception as e:
         raise ToolError(f"Failed to get file version resource: {e}")
 
